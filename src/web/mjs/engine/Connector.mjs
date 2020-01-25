@@ -344,32 +344,32 @@ export default class Connector {
     getAbsolutePath( reference, base ) {
         let baseURI;
         switch( true ) {
-        case base instanceof URL:
-            baseURI = base;
-            break;
-        case typeof base === 'string':
-            baseURI = new URL( base );
-            break;
-        default:
-            throw new Error( 'Failed to extract relative link (parameter "base" is invalid)!' );
+            case base instanceof URL:
+                baseURI = base;
+                break;
+            case typeof base === 'string':
+                baseURI = new URL( base );
+                break;
+            default:
+                throw new Error( 'Failed to extract relative link (parameter "base" is invalid)!' );
         }
 
         let refURI;
         switch( true ) {
-        case reference instanceof URL:
-            refURI = reference;
-            break;
-        case typeof reference === 'string':
-            refURI = new URL( reference, baseURI.href );
-            break;
-        case reference['src'] !== undefined:
-            refURI = new URL( reference.getAttribute( 'src' ), baseURI.href );
-            break;
-        case reference['href'] !== undefined:
-            refURI = new URL( reference.getAttribute( 'href' ), baseURI.href );
-            break;
-        default:
-            throw new Error( 'Failed to extract relative link (parameter "reference" is invalid)!' );
+            case reference instanceof URL:
+                refURI = reference;
+                break;
+            case typeof reference === 'string':
+                refURI = new URL( reference, baseURI.href );
+                break;
+            case reference['src'] !== undefined:
+                refURI = new URL( reference.getAttribute( 'src' ), baseURI.href );
+                break;
+            case reference['href'] !== undefined:
+                refURI = new URL( reference.getAttribute( 'href' ), baseURI.href );
+                break;
+            default:
+                throw new Error( 'Failed to extract relative link (parameter "reference" is invalid)!' );
         }
 
         return refURI.href;
@@ -468,6 +468,18 @@ export default class Connector {
             } );
     }
 
+    async fetchRegex(request, regex) {
+        let response = await fetch(request);
+        let data = await response.text();
+        let result = [];
+        let match = undefined;
+        // eslint-disable-next-line no-cond-assign
+        while(match = regex.exec(data)) {
+            result.push(match[1]);
+        }
+        return result;
+    }
+
     /**
      *
      */
@@ -497,6 +509,14 @@ export default class Connector {
      * callback( error, undefined );
      * } );
      */
+
+    async fetchPROTO(request, protoTypes, rootType) {
+        let Root = (await protobuf.load(protoTypes)).lookupType(rootType);
+        let response = await fetch(request);
+        let data = await response.arrayBuffer();
+        data = Root.decode(new Uint8Array(data));
+        return Root.toObject(data);
+    }
 
     /**
      *
@@ -615,41 +635,38 @@ export default class Connector {
      * Return a promise that resolves with a mime typed buffer on succes,
      * or a promise that rejects with an error.
      */
-    _handleConnectorURI( payload ) {
-        try {
-            //console.log( `Connector '${this.id}' has not implemented protocol handling. Using fallback implementation (fetch blob with default request options)!` );
-            let request = new Request( payload, this.requestOptions );
-            /*
-             * TODO: only perform requests when from download manager
-             * or when from browser for preview and selected chapter matches
-             */
-            return fetch( request )
-                .then( response => response.blob() )
-                .then( data => this._blobToBuffer( data ) );
-        } catch( error ) {
-            return Promise.reject( error );
-        }
+    async _handleConnectorURI(payload) {
+        /*
+         * TODO: only perform requests when from download manager
+         * or when from browser for preview and selected chapter matches
+         */
+        let request = new Request(payload, this.requestOptions);
+        let response = await fetch(request);
+        let data = await response.blob();
+        data = await this._blobToBuffer(data);
+        this._applyRealMime(data);
+        return data;
     }
 
     /**
      * Protected helper function to convert a Blob to a MimeTypedBuffer
      * https://github.com/electron/electron/blob/master/docs/api/protocol.md#protocolregisterbufferprotocolscheme-handler-completion
      */
-    _blobToBuffer( blob ) {
-        return new Promise( ( resolve, reject ) => {
+    async _blobToBuffer(blob) {
+        return new Promise((resolve, reject) => {
             let reader = new FileReader();
             reader.onload = event => {
-                resolve( {
+                resolve({
                     mimeType: blob.type,
                     // NOTE: Uint8Array() seems slightly better than Buffer.from(), but both are blazing fast
-                    data: Buffer.from( event.target.result ) // new Uint8Array( event.target.result )
-                } );
+                    data: Buffer.from(event.target.result) // new Uint8Array( event.target.result )
+                });
             };
             reader.onerror = event => {
-                reject( event.target.error );
+                reject(event.target.error);
             };
-            reader.readAsArrayBuffer( blob );
-        } );
+            reader.readAsArrayBuffer(blob);
+        });
     }
 
     /**

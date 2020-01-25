@@ -11,7 +11,8 @@ export default class NineAnime extends Connector {
         super.label = '9ANIME';
         this.tags = [ 'anime', 'english' ];
         this.url = 'https://9anime.to';
-        this.requestOptions.headers.set( 'x-requested-with', 'XMLHttpRequest' );
+        this.requestOptions.headers.set('x-requested-with', 'XMLHttpRequest');
+        this.requestOptions.headers.set('x-cookie', 'player_autoplay=0');
 
         this.config = {
             resolution:  {
@@ -129,6 +130,7 @@ export default class NineAnime extends Connector {
     _getChapterList( manga, callback ) {
         let script = `
             new Promise( resolve => {
+                localStorage.setItem('player_autoplay', 0);
                 setTimeout( () => {
                     let result = [...document.querySelectorAll( 'div#servers-container div.servers span.tabs span.tab' )]
                     .map( server => {
@@ -188,22 +190,22 @@ export default class NineAnime extends Connector {
             .then( async data => {
                 await this.wait(500);
                 switch(true) {
-                case data.target.includes( 'prettyfast' ):
-                    return this._getEpisodePrettyFast(data.target, new URL(chapter.id, this.url).href, this.config.resolution.value);
-                case data.target.includes( 'hydrax' ):
-                    return this._getEpisodeHydraX( data.target, this.config.resolution.value );
-                case data.target.includes( 'rapidvid' ):
-                    return this._getEpisodeRapidVideo( data.target, this.config.resolution.value );
-                case data.target.includes( 'openload' ):
-                    return this._getEpisodeOpenLoad( data.target, this.config.resolution.value );
-                case data.target.includes( 'mcloud' ):
-                    return this._getEpisodeMyCloud( data.target, this.config.resolution.value );
-                case data.target.includes( 'mp4upload' ):
-                    return this._getEpisodeMp4upload( data.target, this.config.resolution.value );
-                case data.target.includes( 'streamango' ):
-                    return this._getEpisodeStreamango( data.target, this.config.resolution.value );
-                default:
-                    throw new Error( 'Support for video stream from mirror "' + data.target + '" not implemented!' );
+                    case data.target.includes( 'prettyfast' ):
+                        return this._getEpisodePrettyFast(data.target, new URL(chapter.id, this.url).href, this.config.resolution.value);
+                    case data.target.includes( 'hydrax' ):
+                        return this._getEpisodeHydraX( data.target, this.config.resolution.value );
+                    case data.target.includes( 'rapidvid' ):
+                        return this._getEpisodeRapidVideo( data.target, this.config.resolution.value );
+                    case data.target.includes( 'openload' ):
+                        return this._getEpisodeOpenLoad( data.target, this.config.resolution.value );
+                    case data.target.includes( 'mcloud' ):
+                        return this._getEpisodeMyCloud( data.target, this.config.resolution.value );
+                    case data.target.includes( 'mp4upload' ):
+                        return this._getEpisodeMp4upload( data.target, this.config.resolution.value );
+                    case data.target.includes( 'streamango' ):
+                        return this._getEpisodeStreamango( data.target, this.config.resolution.value );
+                    default:
+                        throw new Error( 'Support for video stream from mirror "' + data.target + '" not implemented!' );
                 }
             } )
             .then( media => {

@@ -22,6 +22,7 @@ const mimes = {
 };
 
 const types = {
+    disabled: 'disabled',
     text: 'text',
     password: 'password',
     numeric: 'numeric',
@@ -76,13 +77,12 @@ export default class Settings extends EventTarget {
         };
 
         this.bookmarkDirectory = {
-            label: 'Bookmarks Directory ⁽¹⁾',
+            label: 'Bookmarks Directory',
             description: [
-                'The directory where bookmarks file will be stored',
-                '',
-                '⁽¹⁾ Restart required to take affect',
+                'The directory where the bookmark and chaptermark files will be stored.',
+                'This setting has no effect when the application is in portable mode!'
             ].join('\n'),
-            input: types.directory,
+            input: process.env.HAKUNEKO_PORTABLE ? types.disabled : types.directory,
             value: app.getPath( 'userData' )
         };
 
@@ -259,7 +259,8 @@ export default class Settings extends EventTarget {
                 if(data
                     && data[key] !== undefined
                     && this[key]
-                    && this[key].input)
+                    && this[key].input
+                    && this[key].input !== types.disabled)
                 {
                     this[key].value = this._getDecryptedValue(this[key].input, data[key]);
                     this[key].value = this._getValidValue('General', this[key]);
@@ -291,7 +292,7 @@ export default class Settings extends EventTarget {
             let data = {};
             // gather general settings
             for(let key in this) {
-                if(this[key] && this[key].input) {
+                if(this[key] && this[key].input && this[key].input !== types.disabled) {
                     data[key] = this._getEncryptedValue(this[key].input, this[key].value);
                 }
             }
@@ -340,27 +341,27 @@ export default class Settings extends EventTarget {
     _getValidValue(scope, setting, silent) {
         let value = setting.value;
         switch(setting.input) {
-        case types.numeric:
-            if(setting.min !== undefined && value < setting.min) {
-                return setting.min;
-            }
-            if(setting.max !== undefined && value > setting.max) {
-                return setting.max;
-            }
-            return value;
-        case types.directory:
-            Engine.Storage.directoryExist(value)
-                .catch(error => {
-                    let message = `WARNING: Cannot access the directory for "${setting.label}" from "${scope}" settings!\n\n${error.message}`;
-                    if(silent) {
-                        console.warn(message, error);
-                    } else {
-                        alert(message);
-                    }
-                });
-            return value;
-        default:
-            return value;
+            case types.numeric:
+                if(setting.min !== undefined && value < setting.min) {
+                    return setting.min;
+                }
+                if(setting.max !== undefined && value > setting.max) {
+                    return setting.max;
+                }
+                return value;
+            case types.directory:
+                Engine.Storage.directoryExist(value)
+                    .catch(error => {
+                        let message = `WARNING: Cannot access the directory for "${setting.label}" from "${scope}" settings!\n\n${error.message}`;
+                        if(silent) {
+                            console.warn(message, error);
+                        } else {
+                            alert(message);
+                        }
+                    });
+                return value;
+            default:
+                return value;
         }
     }
 }

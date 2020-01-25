@@ -25,14 +25,13 @@ export default class CrunchyManga extends Crunchyroll {
 
     async _getChapters(manga) {
         await this._login();
-        if(!this._subscriptions.includes('manga')) {
-            throw new Error('A premium subscription is required to download chapters with HakuNeko!');
-        }
         let uri = this._createURI(this.apiURL, '/chapters');
         uri.searchParams.set('series_id', manga.id);
         let request = new Request(uri, this.requestOptions);
         let data = await this.fetchJSON(request);
-        return data.chapters.reverse().map(chapter => {
+        return data.chapters.reverse().filter(chapter => {
+            return this._subscriptions.includes('manga') || chapter.viewable;
+        }).map(chapter => {
             // chapter.volume_number
             let title = chapter.locale ? chapter.locale[this.config.locale.value] || chapter.locale.enUS || '' : '';
             title = title ? ' - ' + title.name : '';
@@ -57,20 +56,28 @@ export default class CrunchyManga extends Crunchyroll {
              *let uri = new URL( page.locale.enUS['composed_image_url'] ); // access is forbidden
              *let uri = new URL( page.locale.enUS['encrypted_mobile_image_url'] ); // smaller size
              */
-            let link;
-            try {
-                let source = page.locale[this.config.locale.value] || page.locale.enUS;
-                link = source['encrypted_composed_image_url'] || source['encrypted_mobile_image_url'];
-            } catch(error) {
-                link = page['image_url'];
+            let links = {
+                invariant: page['image_url'],
+                locale: page['image_url']
+            };
+            let culture = page.locale[this.config.locale.value] || page.locale.enUS;
+            if(culture) {
+                links.locale = culture['encrypted_composed_image_url'] || culture['encrypted_mobile_image_url'];
             }
-            return this.createConnectorURI(link);
+            return this.createConnectorURI(links);
         });
     }
 
     async _handleConnectorURI(payload) {
-        let request = new Request(payload, this.requestOptions);
-        let response = await fetch(request);
+        let response;
+        try {
+            response = await fetch(new Request(payload.locale, this.requestOptions));
+            if(response.status !== 200) {
+                throw new Error('Failed to fetch localized image!');
+            }
+        } catch(error) {
+            response = await fetch(new Request(payload.invariant, this.requestOptions));
+        }
         let data = await response.arrayBuffer();
         return {
             mimeType: response.headers.get('content-type'),

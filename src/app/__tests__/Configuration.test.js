@@ -10,10 +10,10 @@ jest.mock('electron', () => {
             getAppPath: jest.fn(() => '/usr/bin'),
             getPath: jest.fn(type => {
                 switch(type) {
-                case 'exe': return '/usr/bin/hakuneko';
-                case 'userData': return undefined;
-                case 'userCache': return undefined;
-                default: return undefined;
+                    case 'exe': return '/usr/bin/hakuneko';
+                    case 'userData': return undefined;
+                    case 'userCache': return undefined;
+                    default: return undefined;
                 }
             }),
             getName: jest.fn(() => 'HakuNeko')
@@ -85,7 +85,7 @@ describe('Configuration', function() {
     describe('applicationUpdateURL', function() {
         it('should have default after initialization', () => {
             let testee = new Configuration(undefined);
-            expect(testee.applicationUpdateURL).toEqual('http://manga-download.github.io/hakuneko/6.0/latest');
+            expect(testee.applicationUpdateURL).toEqual('https://manga-download.github.io/hakuneko/master/latest');
         });
         it('should be overwritten by update URL from options', () => {
             let testee = new Configuration(expected);
