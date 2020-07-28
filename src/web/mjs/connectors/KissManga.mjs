@@ -5,16 +5,14 @@ export default class KissManga extends Connector {
 
     constructor() {
         super();
-        // Public members for usage in UI (mandatory)
         super.id = 'kissmanga';
         super.label = 'KissManga';
         this.tags = [ 'manga', 'english' ];
         super.isLocked = false;
-        // Private members for internal usage only (convenience)
         this.url = 'https://kissmanga.com';
+        this.listLoadDelay = 2750;
         this.pageLoadDelay = 5000;
-        // Private members for internal use that can be configured by the user through settings menu (set to undefined or false to hide from settings menu!)
-        this.config = undefined;
+        this.requestOptions.headers.set('x-cookie', 'vns_readType1=0');
     }
 
     async _getMangaFromURI(uri) {
@@ -25,29 +23,30 @@ export default class KissManga extends Connector {
         return new Manga(this, id, title);
     }
 
-    /**
-     * Parameters mangalist and page should never be used by external calls.
-     */
-    _getMangaList( callback ) {
-        fetch( 'http://cdn.hakuneko.download/' + this.id + '/mangas.json', this.requestOptions )
-            .then( response => {
-                if( response.status !== 200 ) {
-                    throw new Error( `Failed to receive manga list (status: ${response.status}) - ${response.statusText}` );
-                }
-                return response.json();
-            } )
-            .then( data => {
-                callback( null, data );
-            } )
-            .catch( error => {
-                console.error( error, this );
-                callback( error, undefined );
-            } );
+    async _getMangas() {
+        let mangaList = [];
+        let request = new Request(this.url + '/MangaList', this.requestOptions);
+        let data = await this.fetchDOM(request, 'div.pagination ul.pager li:last-of-type a');
+        let pageCount = parseInt(data[0].getAttribute('page'));
+        for(let page = 1; page <= pageCount; page++) {
+            await this.wait(this.listLoadDelay);
+            let mangas = await this._getMangasFromPage(page);
+            mangaList.push(...mangas);
+        }
+        return mangaList;
     }
 
-    /**
-     *
-     */
+    async _getMangasFromPage(page) {
+        let request = new Request(this.url + '/MangaList?page=' + page, this.requestOptions);
+        let data = await this.fetchDOM(request, 'table.listing tbody tr td:first-of-type a', 3);
+        return data.map(element => {
+            return {
+                id: this.getRootRelativeOrAbsoluteLink(element, this.url).replace(/\s+/g, ''),
+                title: element.text.trim()
+            };
+        });
+    }
+
     _getChapterList( manga, callback ) {
         fetch( this.url + manga.id, this.requestOptions )
             .then( response => {
@@ -88,9 +87,6 @@ export default class KissManga extends Connector {
             } );
     }
 
-    /**
-     *
-     */
     _getPageList( manga, chapter, callback ) {
         if( this.isLocked ) {
             console.warn( `[WARN: ${this.label}, too many requests]` );
@@ -102,10 +98,16 @@ export default class KissManga extends Connector {
             this.unlock( key );
         }, this.pageLoadDelay );
         let script = `
-                new Promise(resolve => {
-                    resolve(lstImages);
-                });
-            `;
+            new Promise(resolve => {
+                // cookie: vns_readType1=0 => one page (lstImages)
+                // cookie: vns_readType1=1 => all pages (lstOLA)
+                if(this.lstOLA && this.lstOLA.length > 0) {
+                    resolve(this.lstOLA);
+                } else {
+                    resolve(this.lstImages);
+                }
+            });
+        `;
         let request = new Request( this.url + chapter.id, this.requestOptions );
         Engine.Request.fetchUI( request, script )
             .then( data => {

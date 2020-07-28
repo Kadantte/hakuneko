@@ -7,21 +7,57 @@ export default class Luscious extends Connector {
         super();
         super.id = 'luscious';
         super.label = 'Luscious';
-        this.tags = [ 'hentai', 'english' ];
+        this.tags = [ 'hentai', 'multi-lingual' ];
         this.url = 'https://www.luscious.net';
+        this.apiURL = 'https://api.luscious.net/graphql/nobatch/';
     }
 
     async _getMangaFromURI(uri) {
         let request = new Request(uri, this.requestOptions);
-        let data = await this.fetchDOM(request, 'ul#single_album_details li.album_cover h2');
+        let data = await this.fetchDOM(request, 'head title');
         let id = uri.pathname;
-        let title = data[0].textContent.trim();
+        let title = data[0].textContent.split('|')[0].trim() + ` [${data[0].lang}]`;
         return new Manga(this, id, title);
     }
 
+    async _getGraphQL(gql) {
+        let uri = new URL(this.apiURL);
+        uri.searchParams.set('query', gql);
+        let request = new Request(uri, this.requestOptions);
+        let data = await this.fetchJSON(request);
+        if(data.errors) {
+            throw new Error(this.label + ' errors: ' + data.errors.map(error => error.message).join('\n'));
+        }
+        if(!data.data) {
+            throw new Error(this.label + 'No data available!');
+        }
+        return data.data;
+    }
+
     async _getMangas() {
-        let msg = 'This website does not provide a manga list, please copy and paste the URL containing the images directly from your browser into HakuNeko.';
-        throw new Error(msg);
+        let mangaList = [];
+        for(let page = 1, run = true; run; page++) {
+            let mangas = await this._getMangasFromPage(page);
+            mangas.length > 0 ? mangaList.push(...mangas) : run = false;
+        }
+        return mangaList;
+    }
+
+    async _getMangasFromPage(page) {
+        let gql = `{
+            album {
+                list(input: { display: date_newest, page: ${page} }) {
+                    items { url, title }
+                }
+            }
+        }`;
+        let data = await this._getGraphQL(gql);
+        return data.album.list.items.map(item => {
+            return {
+                id: this.getRootRelativeOrAbsoluteLink(item.url, this.url),
+                title: item.title.trim()
+            };
+        });
     }
 
     async _getChapters(manga) {

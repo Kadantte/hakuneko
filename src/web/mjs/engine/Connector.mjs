@@ -38,6 +38,10 @@ export default class Connector {
         this.requestOptions.headers.set('accept', 'image/webp,image/apng,image/*,*/*');
     }
 
+    canHandleURI(uri) {
+        return this.url === uri.origin;
+    }
+
     /**
      *
      */
@@ -429,14 +433,14 @@ export default class Connector {
         return fetch( request )
             .then( response => {
                 if( response.status >= 500 && retries > 0 ) {
-                    return this.wait( 5000 )
+                    return this.wait( 2500 )
                         .then( () => this.fetchDOM( request, selector, retries - 1 ) );
                 }
                 if( response.status === 200 ) {
                     return response.text()
                         .then( data => {
                             let dom = this.createDOM( data );
-                            return Promise.resolve( [...dom.querySelectorAll( selector )] );
+                            return Promise.resolve( !selector ? dom : [...dom.querySelectorAll( selector )] );
                         } );
                 }
                 throw new Error( `Failed to receive content from "${request.url}" (status: ${response.status}) - ${response.statusText}` );
@@ -469,6 +473,9 @@ export default class Connector {
     }
 
     async fetchRegex(request, regex) {
+        if(!/\/[imsuy]*g[imsuy]*$/.test('' + regex)) {
+            throw new Error('The provided RegExp must contain the global "g" modifier!');
+        }
         let response = await fetch(request);
         let data = await response.text();
         let result = [];

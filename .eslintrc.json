@@ -18,7 +18,8 @@
         "Engine": "readonly",
         "EventListener": "readonly",
         "Connector": "readonly",
-        "ClipboardConnector": "readonly"
+        "ClipboardConnector": "readonly",
+        "EXIF": "readonly"
     },
     "parserOptions": {
         "ecmaVersion": 2018,
@@ -30,8 +31,6 @@
         "indent": ["error", 4, { "SwitchCase": 1 }],
         "no-trailing-spaces": "error",
         "no-multiple-empty-lines": ["error", {"max": 1, "maxBOF": 0, "maxEOF": 0}],
-        "eol-last": ["error", "never"],
-        "no-multi-spaces": "error",
-        "multiline-comment-style": ["warn", "starred-block"]
+        "no-multi-spaces": "error"
     }
 }

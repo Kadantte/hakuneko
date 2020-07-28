@@ -1,3 +1,4 @@
+import InterProcessCommunication from './engine/InterProcessCommunication.mjs';
 import Enums from './engine/Enums.mjs';
 import Connector from './engine/Connector.mjs';
 
@@ -12,6 +13,7 @@ import Request from './engine/Request.mjs';
 import Settings from './engine/Settings.mjs';
 import Storage from './engine/Storage.mjs';
 import Version from './VersionInfo.mjs';
+import DiscordPresence from './engine/DiscordPresence.mjs';
 
 export default class HakuNeko {
 
@@ -22,14 +24,16 @@ export default class HakuNeko {
         this._version = Version;
         this._enums = Enums;
 
+        let ipc = new InterProcessCommunication();
         this._blacklist = new Blacklist();
         this._downloadManager = new DownloadManager();
         this._settings = new Settings();
-        this._request = new Request(this._settings);
-        this._connectors = new Connectors(this._request);
+        this._request = new Request(ipc, this._settings);
+        this._connectors = new Connectors(ipc);
         this._storage = new Storage();
         this._bookmarkManager = new BookmarkManager(this._settings, new BookmarkImporter());
         this._chaptermarkManager = new ChaptermarkManager(this._settings);
+        this._discordPresence = new DiscordPresence(this._settings);
     }
 
     /**

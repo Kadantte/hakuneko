@@ -108,8 +108,8 @@
             <template is="dom-if" if="[[ pageViewMode(media,selectedMedia) ]]">
                 <div id="buttons" tabindex="0" onblur="this.focus()" on-keydown="onKeyDown">
                     <span class="title">[[ selectedChapter.title ]]</span>
-                    <i class="fas fa-chevron-down fa-2x button" title="Chapter Down (PageDown)" on-click="requestChapterDown"></i>
-                    <i class="fas fa-chevron-up fa-2x button" title="Chapter Up (PageUp)" on-click="requestChapterUp"></i>
+                    <i class="fas fa-chevron-down fa-2x button" title="Chapter Down (ArrowLeft)" on-click="requestChapterDown"></i>
+                    <i class="fas fa-chevron-up fa-2x button" title="Chapter Up (ArrowRight)" on-click="requestChapterUp"></i>
                     &nbsp;
                     <i class="fas fa-compress fa-2x button" title="Decrease spacing between images (CTRL ➖)" on-click="decreaseImagePadding"></i>
                     <i class="fas fa-expand fa-2x button" title="Increase spacing between images (CTRL ➕)" on-click="increaseImagePadding"></i>
@@ -120,7 +120,7 @@
                     <i class="fas fa-times-circle fa-2x button" title="Close (ESC)" on-click="hideViewer"></i>
                 </div>
                 <template is="dom-repeat" items="[[ media ]]" style="margin-top: 1.5em;">
-                    <img id$="page_[[ index ]]" class="image" src$="[[ item ]]" style$="width: [[ imageWidth ]]%; margin: [[ imagePadding ]]em;"></div>
+                    <img id$="page_[[ index ]]" class="image" src$="[[ item ]]" style$="width: [[ imageWidth ]]%; margin: [[ imagePadding ]]em;" onerror="imgError(this)"></div>
                 </template>
             </template>
             <template is="dom-if" if="[[ videoViewMode(media,selectedMedia) ]]" on-dom-change="onVideoElementChanged">
@@ -137,6 +137,22 @@
     </template>
 
     <script>
+        /**
+         * Handle image load errors
+         */
+         function imgError(image) {
+            if (!image.hasOwnProperty('retryCount')){
+            image.retryCount = 0;
+            }
+
+            if (image.retryCount < 3){
+            setTimeout(function (){
+                image.src += '?' + +new Date;
+                image.retryCount += 1;
+            }, 1000);
+            }
+        }
+
         /** @polymerElement */
         class HakunekoPages extends Polymer.Element {
             /**
@@ -178,6 +194,7 @@
                 this.hls = undefined;
                 this.ass = undefined;
                 this.videoResizeObserver = new ResizeObserver( this.onVideoResized.bind( this ) );
+                this.autoNextChapter = false;
             }
 
             /**
@@ -185,17 +202,37 @@
              */
             onKeyDown( event ) {
                 switch( true ) {
-                    case event.key === 'ArrowUp' && !event.ctrlKey:
-                        this.$.container.scrollTop -= 64;
+                    case event.code === 'ArrowUp' && !event.ctrlKey:
+                        scrollSmoothly(this.$.container, -64);
                         break;
-                    case event.key === 'ArrowDown' && !event.ctrlKey:
-                        this.$.container.scrollTop += 64;
+                    case event.code === 'ArrowDown' && !event.ctrlKey:
+                        scrollSmoothly(this.$.container, 64);
                         break;
-                    case event.key === 'PageUp' && !event.ctrlKey:
+                    case event.code === 'PageUp' && !event.ctrlKey:
+                        this.$.container.scrollBy({ 
+                            top: -window.innerHeight*0.95,
+                            left: 0, 
+                            behavior: 'smooth' 
+                        });
+                        break;
+                    case event.code === 'PageDown' && !event.ctrlKey:
+                        this.$.container.scrollBy({ 
+                            top: window.innerHeight*0.95,
+                            left: 0, 
+                            behavior: 'smooth' 
+                        });
+                        break;
+                    case event.code === 'ArrowRight' && !event.ctrlKey:
                         this.requestChapterUp( event );
                         break;
-                    case event.key === 'PageDown' && !event.ctrlKey:
+                    case event.code === 'ArrowLeft' && !event.ctrlKey:
                         this.requestChapterDown( event );
+                        break;
+                    case event.key === '*' && !event.ctrlKey:
+                        this.imageWidth = 100;
+                        break;
+                    case event.key === '/' && !event.ctrlKey:
+                        this.imageWidth = 75;
                         break;
                     case event.key === '+' && !event.ctrlKey:
                         this.zoomIn( event );
@@ -209,8 +246,11 @@
                     case event.key === '-' && event.ctrlKey:
                         this.decreaseImagePadding( event );
                         break;
-                    case event.key === 'Escape' && !event.ctrlKey:
+                    case event.code === 'Escape' && !event.ctrlKey:
                         this.hideViewer( event );
+                        break;
+                    case event.code === 'Space' && !event.ctrlKey:
+                        this.scrollMagic(window.innerHeight*0.80);
                         break;
                     default:
                         break;
@@ -416,6 +456,7 @@
              * fire event to request the next chapter
              */
             requestChapterUp( event ) {
+                this.autoNextChapter=false;
                 window.dispatchEvent( new CustomEvent( 'chapterUp', { detail: this.selectedChapter } ) );
             }
 
@@ -486,8 +527,84 @@
                     this.$.container.scrollTop = previousOffset * this.$.container.scrollHeight / previousHeight;
                 //}.bind( this ), 0 );
             }
+
+            /**
+             * Dynamically change the scrolling to stop at the end of images or skip to the start of the next image
+             * Usefull for manga reading but ugly with webtoons
+             */
+             scrollMagic(defaultDistance) {
+                let images = this.$.container.querySelectorAll('.image');
+                // Are we at the end of the page
+                if(images[images.length-1].getBoundingClientRect().bottom-window.innerHeight < 1)
+                {
+                    // Should we go to next chapter because we previouysly reached the end of page ?
+                    if (this.autoNextChapter) { return this.requestChapterUp(); };
+                    // Prepare for next chapter
+                    this.autoNextChapter = true;
+                    // Todo: Find a way to popup that you have to press spacebar again within 4s
+                    setTimeout(function(){ this.autoNextChapter=false; }, 4000);
+                    return;
+                }
+                // Lets stay on current page
+                // Find current image within view
+                let targetScrollImages = [...images].filter(image => {
+                    let rect = image.getBoundingClientRect();
+                    return (rect.top <= window.innerHeight && rect.bottom >1);
+                });
+
+                // If multiple images filtered, get the last one. If none scroll use the top image
+                let targetScrollImage = targetScrollImages[targetScrollImages.length-1] || images[0];
+
+                // Is the target image top within view ? then scroll to the top of it
+                if (targetScrollImage.getBoundingClientRect().top > 1 ) {
+                    // Scroll to it
+                    targetScrollImage.scrollIntoView({ 
+                        behavior: 'smooth' 
+                    });
+                }
+                // Do we stay within target ? (bottom is further than current view)
+                else if (window.innerHeight +1 < targetScrollImage.getBoundingClientRect().bottom ){
+                    this.$.container.scrollBy({ 
+                        top: Math.min(defaultDistance,targetScrollImage.getBoundingClientRect().bottom-window.innerHeight),
+                        left: 0, 
+                        behavior: 'smooth' 
+                    });
+                }
+                // We have to try to get to next image
+                else {
+                    // Find next image
+                    let nextScrollImage = targetScrollImage.nextElementSibling;
+                    // Scroll to it
+                    nextScrollImage.scrollIntoView({ 
+                        behavior: 'smooth' 
+                    });
+                }
+            }
+
         }
+
         window.customElements.define( HakunekoPages.is, HakunekoPages );
+        
+        function scrollSmoothly(element, distance) {
+            const speed = Math.abs(Math.floor(distance / 10)),
+                end = Math.abs(distance % speed);
+            function doTinyScroll(){
+                if (Math.abs(distance) == end) return;
+                else if (distance > 0) {
+                    element.scrollBy({
+                        top: speed
+                    });
+                    distance -= speed;
+                } else {
+                    element.scrollBy({
+                        top: -speed
+                    });
+                    distance += speed;
+                }
+                window.requestAnimationFrame(doTinyScroll);
+            }
+            window.requestAnimationFrame(doTinyScroll);
+        }
     </script>
 
 </dom-module>

@@ -29,18 +29,29 @@ export default class Publus extends Connector {
                 setTimeout(async () => {
                     try {
                         if(this.NFBR) {
-                            let pageList = Object.keys(NFBR.a6G.a6L.cache.data_).map(key => {
-                                let url = NFBR.a6G.a6L.cache.get(key).getUrl();
-                                let file = url.match(/item.*\\d+/)[0];
+                            let configuration = await (await fetch(NFBR.GlobalConfig.SERVER_DOMAIN + NFBR.GlobalConfig.WEBAPI_CONTENT_CHECK + window.location.search)).json();
+                            let packURI = new URL(configuration.url + NFBR.a5n.a5N + '_pack.json', window.location.origin);
+                            packURI.search = '?' + new URLSearchParams(configuration.auth_info || {}).toString();
+                            let pack = await (await fetch(packURI)).json();
+                            let pageList = Object.keys(pack).filter(key => key.includes('xhtml')).sort().map(key => {
+                                let uri = new URL(configuration.url + key + '/0.jpeg', window.location.origin);
+                                uri.search = packURI.search;
+                                let file = uri.pathname.match(/(item|text).*[0-9]+/)[0];
                                 for (let d = v = 0; d < file.length; d++) {
                                     v += file.charCodeAt(d);
                                 }
                                 return {
                                     mode: 'puzzle',
-                                    imageUrl: new URL(url, window.location).href,
+                                    imageUrl: uri.href,
                                     encryptionKey: v % NFBR.a0X.a3h + 1
                                 };
                             });
+                            let lastPage = pageList.pop();
+                            if(lastPage.imageUrl.includes('cover')) {
+                                pageList.unshift(lastPage);
+                            } else {
+                                pageList.push(lastPage);
+                            }
                             return resolve(pageList);
                         }
                         throw new Error('Unsupported image viewer!');
@@ -65,10 +76,12 @@ export default class Publus extends Connector {
             }
             case 'xor': {
                 let data = await response.arrayBuffer();
-                return {
-                    mimeType: 'image/png', // response.headers.get('content-type'),
+                data = {
+                    mimeType: response.headers.get('content-type'),
                     data: await this._decryptXOR(data, payload.encryptionKey)
                 };
+                this._applyRealMime(data);
+                return data;
             }
             default: {
                 let data = await response.blob();
@@ -92,7 +105,6 @@ export default class Publus extends Connector {
             }
             return s;
         } else {
-            // "image/png"
             return encrypted;
         }
     }

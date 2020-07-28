@@ -534,35 +534,32 @@ export default class Storage {
     /**
      * Add a single image as PDF page to the given document.
      */
-    _addImageToPDF( pdfDocument, page ) {
-        return createImageBitmap( page.data )
-            .then( bitmap => {
-                let promise;
-                let pdfImgType = this._pdfImageType( page );
-                if( !pdfImgType ) {
-                    pdfImgType = 'JPEG';
-                    let canvas = document.createElement( 'canvas' );
-                    canvas.width = bitmap.width;
-                    canvas.height = bitmap.height;
-                    let ctx = canvas.getContext( '2d' );
-                    ctx.drawImage( bitmap, 0, 0 );
-                    promise = new Promise( resolve => {
-                        canvas.toBlob( data => {
-                            resolve( data );
-                        }, 'image/jpeg', 0.90 );
-                    } );
-                } else {
-                    promise = Promise.resolve( page.data );
-                }
-                return promise.then( blob => this._blobToBytes( blob ) )
-                    .then( bytes => {
-                        let pdfTargetWidth = this.pdfTargetHeight * bitmap.width / bitmap.height;
-                        pdfDocument.addPage( pdfTargetWidth, this.pdfTargetHeight );
-                        // use page.name as image alias, to prevent image repeat bug: https://github.com/MrRio/jsPDF/issues/998
-                        pdfDocument.addImage( bytes, pdfImgType, 0, 0, pdfTargetWidth, this.pdfTargetHeight, page.name );
-                        return Promise.resolve();
-                    } );
-            } );
+    async _addImageToPDF(pdfDocument, page) {
+        let bitmap = await new Promise(resolve => {
+            let img = new Image();
+            img.onload = () => resolve(img);
+            img.src = URL.createObjectURL(page.data);
+        });
+        let pdfImgType = this._pdfImageType(page);
+        let blob;
+        if(!pdfImgType) {
+            pdfImgType = 'JPEG';
+            let canvas = document.createElement('canvas');
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            let ctx = canvas.getContext('2d');
+            ctx.drawImage(bitmap, 0, 0);
+            blob = await new Promise(resolve => {
+                canvas.toBlob(data => resolve(data), 'image/jpeg', 0.90);
+            });
+        } else {
+            blob = page.data;
+        }
+        let bytes = await this._blobToBytes(blob);
+        let pdfTargetWidth = this.pdfTargetHeight * bitmap.width / bitmap.height;
+        pdfDocument.addPage(pdfTargetWidth, this.pdfTargetHeight);
+        // use page.name as image alias, to prevent image repeat bug: https://github.com/MrRio/jsPDF/issues/998
+        pdfDocument.addImage(bytes, pdfImgType, 0, 0, pdfTargetWidth, this.pdfTargetHeight, page.name);
     }
 
     /**
@@ -647,16 +644,17 @@ export default class Storage {
         } );
     }
 
-    /**
-     *
-     */
-    saveVideoChunkTemp( content ) {
+    async saveTempFile(name, data) {
         try{
-            let file = this.path.join( this.temp, this.sanatizePath( content.name ) );
-            return this._writeFile( file, content.data );
-        } catch( error ) {
-            return Promise.reject( error );
+            let file = this.path.join(this.temp, this.sanatizePath(name));
+            return this._writeFile(file, data);
+        } catch(error) {
+            return Promise.reject(error);
         }
+    }
+
+    async saveVideoChunkTemp(content) {
+        return this.saveTempFile(content.name, content.data);
     }
 
     /**
@@ -800,17 +798,16 @@ export default class Storage {
     sanatizePath ( path ) {
         if( this.platform.indexOf( 'win' ) === 0 ) {
             // TODO: max. 260 characters per path
-            path = path.replace( /[\\/:*?"<>|\r\n\t]/g, '' );
-            return path.replace( /\.+$/g, '' ).trim(); // remove trailing dots and whitespaces
+            path = path.replace(/[\\/:*?"<>|\r\n\t]/g, '');
         }
         if( this.platform.indexOf( 'linux' ) === 0 ) {
-            return path.replace( /[/\r\n\t]/g, '' );
+            path = path.replace(/[/\r\n\t]/g, '');
         }
         if( this.platform.indexOf( 'darwin' ) === 0 ) {
             // TODO: max. 32 chars per part
-            return path.replace( /[/:\r\n\t]/g, '' );
+            path = path.replace(/[/:\r\n\t]/g, '');
         }
-        return path;
+        return path.replace(/[.\s]+$/g, '').trim();
     }
 
     /**
@@ -873,10 +870,10 @@ export default class Storage {
      * If the mime is not a spported PDF image format undefined will be returned.
      */
     _pdfImageType( image ) {
-        if( image.type === 'image/jpeg' && ( image.data[3] === 0xE0 || image.data[3] === 0xE1 ) ) {
+        if(image.type === 'image/jpeg') {
             return 'JPEG';
         }
-        if( image.type === 'image/png' ) {
+        if(image.type === 'image/png') {
             return 'PNG';
         }
         return undefined;

@@ -89,6 +89,7 @@ export default class Chapter extends EventTarget {
      * and a reference to the page list (undefined on error).
      */
     getPages( callback ) {
+        document.dispatchEvent(new CustomEvent(EventListener.onSelectChapter, { detail: this }));
         if( this.status === statusDefinitions.offline || this.status === statusDefinitions.completed ) {
             Engine.Storage.loadChapterPages( this )
                 .then( pages => {
@@ -110,7 +111,8 @@ export default class Chapter extends EventTarget {
                     this.manga.connector._getPageList( this.manga, this, ( error, pages ) => {
                         this.pageCache = [];
                         if( !error ) {
-                            this.pageCache = pages;
+                            // HACK: bypass 'i0.wp.com' image CDN to ensure original images are loaded directly from host
+                            this.pageCache = Array.isArray(pages) ? pages.map(page => page.replace(/\/i\d+\.wp\.com/, '')) : pages;
                         }
                         callback( error, this.pageCache );
                     } );

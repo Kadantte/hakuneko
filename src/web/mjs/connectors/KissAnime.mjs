@@ -20,6 +20,7 @@ export default class KissAnime extends Connector {
                 input: 'select',
                 options: [
                     { value: '', name: 'Mirror\'s Default' },
+                    { value: '360', name: '360p' },
                     { value: '480', name: '480p' },
                     { value: '720', name: '720p' },
                     { value: '1080', name: '1080p' }
@@ -37,14 +38,9 @@ export default class KissAnime extends Connector {
         return new Manga(this, id, title);
     }
 
-    async _getMangaList(callback) {
-        try {
-            let data = await this.fetchJSON('http://cdn.hakuneko.download/' + this.id + '/mangas.json', 3);
-            callback(null, data);
-        } catch(error) {
-            console.error(error, this);
-            callback(error, undefined);
-        }
+    async _getMangas() {
+        let msg = 'This website does not provide an anime list, please copy and paste the URL containing the episodes directly from your browser into HakuNeko.';
+        throw new Error(msg);
     }
 
     async _getChapterList(manga, callback) {
@@ -65,9 +61,6 @@ export default class KissAnime extends Connector {
         }
     }
 
-    /**
-     *
-     */
     _getPageList( manga, chapter, callback ) {
         if( this.isLocked ) {
             console.warn( `[WARN: ${this.label}, too many requests]` );
@@ -106,18 +99,15 @@ export default class KissAnime extends Connector {
     }
 
     async _getEpisodeHydraX(link, resolution) {
-        let hydrax = new HydraX(link, link.split('#slug=')[1], 'f94dc63ead6c84b0c7d4ed5e36b1ed18');
-        let playlist = await hydrax.getPlaylist(parseInt(resolution));
+        let hydrax = new HydraX(link, link.split('#slug=')[1]);
+        let stream = await hydrax.getPlaylist(parseInt(resolution));
         return {
-            hash: 'id,language,resolution',
-            mirrors: [ playlist ],
+            video: stream,
+            referer: link,
             subtitles: []
         };
     }
 
-    /**
-     * Same as in 9anime
-     */
     _getEpisodeRapidVideo( link, resolution ) {
         let request = new Request( link, this.requestOptions );
         request.headers.set( 'x-cookie', 'q=' + resolution );

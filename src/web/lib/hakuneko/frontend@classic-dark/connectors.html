@@ -301,6 +301,7 @@
              */
             selectConnector( evt ) {
                 this.set( 'selectedConnector', evt.model.item );
+                document.dispatchEvent(new CustomEvent(EventListener.onSelectConnector, { detail: evt.model.item }));
                 this.closePopup();
             }
 
@@ -309,7 +310,7 @@
              */
             _openLink(evt, link) {
                 if(link) {
-                    let popup = window.open(link, evt.model.label, 'nodeIntegration=no');
+                    let popup = window.open(link, evt.model.label, 'frame=true,nodeIntegration=no');
                     // disable onbeforeunload periodically (in case of navigation) to prevent blocking window close
                     let watchdog = setInterval(() => {
                         if(popup.closed) {
@@ -374,13 +375,9 @@
                 if( evt.keyCode !== 13 || this.$.mangaPattern.disabled /*this.isMangaFilterButtonDisabled*/ ) {
                     return;
                 }
-                if( !this.mangaPattern ) {
-                    this.set( 'connectorList', Engine.Connectors );
-                    return;
-                }
 
                 this.$.mangaPattern.disabled = true;
-                let promises = this.connectorList.map( connector => {
+                let promises = Engine.Connectors.map( connector => {
                     if( typeof connector.findMatchingManga === 'function' ) {
                         return connector.findMatchingManga( this.mangaPattern )
                         .then( result => result ? Promise.resolve( connector ) : Promise.resolve( undefined ) );

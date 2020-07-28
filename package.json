@@ -2,7 +2,7 @@
   "name": "hakuneko-dev",
   "version": "1.0.0",
   "description": "HakuNeko",
-  "author": "Ronny Wegener <wegener.ronny@gmail.com>",
+  "author": "The HakuNeko Development Team <https://github.com/orgs/manga-download/people>",
   "license": "Unlicense",
   "main": "src/app/main.js",
   "repository": {
@@ -15,7 +15,8 @@
     "@hakuneko/kindlegen-binaries": "latest",
     "@logtrine/logtrine": "latest",
     "asar": "latest",
-    "electron": "7.1.9",
+    "discord-rpc": "latest",
+    "electron": "8.3.4",
     "eslint": "latest",
     "fs-extra": "latest",
     "innosetup-compiler": "latest",
@@ -30,7 +31,7 @@
   "scripts": {
     "postinstall": "cd src/app && npm install",
     "start": "npm run start:dev",
-    "start:dev": "electron . --update-url=DISABLED --cache-directory=./src/web",
+    "start:dev": "electron . --update-url=DISABLED --cache-directory=./src/web --disable-http-cache",
     "start:build": "npm run build:web && electron . --update-url=DISABLED --cache-directory=./build/latest",
     "lint": "npm run lint:app && npm run lint:web",
     "lint:app": "eslint ./src/app --ignore-path .gitignore",
