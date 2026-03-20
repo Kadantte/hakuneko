@@ -7,10 +7,9 @@ export default class Mangakyo extends WordPressMangastream {
         super.id = 'mangakyo';
         super.label = 'Mangakyo';
         this.tags = [ 'manga', 'webtoon', 'indonesian' ];
-        this.url = 'https://www.mangakyo.me';
-        this.path = '/manga/?list';
+        this.url = 'https://mangakyo.org';
+        this.path = '/komik/list-mode/';
 
-        this.queryChapters = 'div.bxcl ul li span.lchx a';
-        this.queryChaptersTitle = undefined;
+        this.queryChapters = 'div.bxcl ul li div.eph-num a';
     }
 }

@@ -9,6 +9,17 @@ export default class MangaKatana extends Connector {
         super.label = 'MangaKatana';
         this.tags = [ 'manga', 'english' ];
         this.url = 'https://mangakatana.com';
+        this.queryPages = '#imgs .wrap_img img[data-src]';
+        this.config = {
+            throttle: {
+                label: 'Manga list Throttle [ms]',
+                description: 'Enter the timespan in [ms] to delay consecutive requests to the website for Manga list fetching',
+                input: 'numeric',
+                min: 100,
+                max: 10000,
+                value: 1000
+            }
+        };
     }
 
     async _getMangaFromURI(uri) {
@@ -25,13 +36,14 @@ export default class MangaKatana extends Connector {
         let pageCount = parseInt(data[0].href.match(/\/(\d+)$/)[1]);
         for(let page = 1; page <= pageCount; page++) {
             let mangas = await this._getMangasFromPage(page);
+            await this.wait(this.config.throttle.value);
             mangaList.push(...mangas);
         }
         return mangaList;
     }
 
     async _getMangasFromPage(page) {
-        const uri = new URL('/manga/page/' + page, this.url);
+        const uri = new URL('/manga/page/' + page + '?filter=1', this.url);
         const request = new Request(uri, this.requestOptions);
         const data = await this.fetchDOM(request, 'div#book_list div.item div.text h3.title a');
         return data.map(element => {
@@ -56,8 +68,14 @@ export default class MangaKatana extends Connector {
 
     async _getPages(chapter) {
         const script = `
-            new Promise(resolve => {
-                resolve(ytaw);
+            new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    try {
+                        resolve([ ...document.querySelectorAll('${this.queryPages}') ].map(element => element.dataset.src));
+                    } catch(error) {
+                        reject(error);
+                    }
+                }, 2500);
             });
         `;
         const uri = new URL(chapter.id, this.url);

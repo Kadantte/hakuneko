@@ -93,6 +93,13 @@ export default class Settings extends EventTarget {
             value: false
         };
 
+        this.ignoreErrorOnDownload = {
+            label: 'Ignore errors on download',
+            description: 'The download will be treated as successful, even if all or some files failed to download and the chapter is in a broken state',
+            input: types.checkbox,
+            value: false
+        };
+
         this.chapterTitleFormat = {
             label: 'Chapter Title Format',
             description: [
@@ -151,6 +158,13 @@ export default class Settings extends EventTarget {
             min: 50,
             max: 100,
             value: 90
+        };
+
+        this.useSequentialMediaDownloads = {
+            label: 'Disable Concurrent Downloads',
+            description: 'Media will be downloaded one after another instead of concurrently. Enable this in case of holding a slow internet connection, or regularly encountering failed downloads due to network errors.',
+            input: types.checkbox,
+            value: false
         };
 
         this.proxyRules = {

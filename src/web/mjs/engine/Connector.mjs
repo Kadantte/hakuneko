@@ -56,7 +56,7 @@ export default class Connector {
     async _initializeConnector() {
         let uri = new URL(this.url);
         let request = new Request(uri.href, this.requestOptions);
-        return Engine.Request.fetchUI(request, '');
+        return Engine.Request.fetchUI(request, '', 60000, true);// 60sec is default timeout from fetchUI, and we need images=true for DDOS-GUARD
     }
 
     async initialize() {
@@ -475,15 +475,15 @@ export default class Connector {
             request = new URL(request);
         }
 
-        const requestOptions = JSON.parse(JSON.stringify(this.requestOptions));
-        const graphQLRequest = new Request(request.href ? request.href : request.url, Object.assign(requestOptions, {
+        const graphQLRequest = new Request(request.href ? request.href : request.url, {
+            ...this.requestOptions,
             method: 'POST',
             body: JSON.stringify({
                 operationName,
                 query,
                 variables,
             })
-        }));
+        });
         graphQLRequest.headers.set('content-type', 'application/json');
 
         return this.fetchJSON(graphQLRequest)
@@ -740,7 +740,7 @@ export default class Connector {
 
     getFormatRegex() {
         return {
-            chapterRegex: /\s*(?:^|ch\.?|ep\.?|chapter|chapitre|Bölüm|Chap|Chương|ตอนที่|Kapitel|Capitolo|Rozdział|Глава|Cap[ií]tulo|cap|episode|#):?\s*([\d.?\-?v?]+)(?:\s|:|$)+/i, // $ not working in character groups => [\s\:$]+ does not work
+            chapterRegex: /\s*(?:^|ch\.?|ep\.?|chapter|chapitre|Bölüm|Chap|Chương|ตอนที่|Kapitel|Capitolo|Rozdział|Глава|Cap[ií]tulo|cap|[ée]pisode|Page|N[゜°]|DAY|#)\s?:?\s*([\d.?\-?v?]+)(?:\s|:|$)+/i, // $ not working in character groups => [\s\:$]+ does not work
             volumeRegex: /\s*(?:vol\.?|volume|Sezon|Том|Band|Cilt|tome)\s*(\d+)/i
         };
     }

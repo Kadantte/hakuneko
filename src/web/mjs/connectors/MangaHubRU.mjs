@@ -6,16 +6,19 @@ export default class MangaHubRU extends Connector {
     constructor() {
         super();
         super.id = 'mangahubru';
-        super.label = 'MangaHub';
+        super.label = 'MangaHub.RU';
         this.tags = [ 'manga', 'webtoon', 'russian' ];
         this.url = 'https://mangahub.ru';
+        this.requestOptions.headers.set('x-cookie', 'confirm_age=1');
+        this.requestOptions.headers.set('x-referer', this.url);
+
     }
 
     async _getMangaFromURI(uri) {
         let request = new Request(uri, this.requestOptions);
-        let data = await this.fetchDOM(request, 'div.page-head h1[itemprop="name"]');
+        let data = await this.fetchDOM(request, 'source.cover');
         let id = uri.pathname + uri.search;
-        let title = data[0].textContent.trim();
+        let title = data[0].getAttribute('alt').trim();
         return new Manga(this, id, title);
     }
 
@@ -33,7 +36,7 @@ export default class MangaHubRU extends Connector {
 
     async _getMangasFromPage(page) {
         let request = new Request(new URL('/explore?page=' + page, this.url), this.requestOptions);
-        let data = await this.fetchDOM(request, 'div.container div.card a.comic-grid-name');
+        let data = await this.fetchDOM(request, 'div.container div.card a.fw-medium');
         return data.map(element => {
             return {
                 id: this.getRootRelativeOrAbsoluteLink(element, request.url),
@@ -43,8 +46,9 @@ export default class MangaHubRU extends Connector {
     }
 
     async _getChapters(manga) {
-        let request = new Request(new URL(manga.id, this.url), this.requestOptions);
-        let data = await this.fetchDOM(request, 'div.container div.card div[data-chapter] div:first-of-type a');
+        let uri = new URL(manga.id + '/chapters', this.url);
+        let request = new Request(uri, this.requestOptions);
+        let data = await this.fetchDOM(request, 'div.detail-chapters div.detail-chapter div.flex-column a');
         return data.map(element => {
             return {
                 id: this.getRootRelativeOrAbsoluteLink(element, request.url),
@@ -55,8 +59,8 @@ export default class MangaHubRU extends Connector {
     }
 
     async _getPages(chapter) {
-        let request = new Request(new URL(chapter.id, this.url), this.requestOptions);
-        let data = await this.fetchDOM(request, 'div[data-js-scans]');
-        return JSON.parse(data[0].dataset.jsScans).map(entry => this.getAbsolutePath(entry.src, request.url));
+        const request = new Request(new URL(chapter.id, this.url), this.requestOptions);
+        const data = await this.fetchDOM(request, 'source.reader-viewer-img');
+        return data.map(entry => this.createConnectorURI(this.getAbsolutePath(entry.dataset.src, request.url)));
     }
 }

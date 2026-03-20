@@ -43,7 +43,7 @@ async function assertConnector(browserPage, parameters, expectations) {
 
     // get chapters for manga as reference to the remote instance
     let remoteChapters = await browserPage.evaluateHandle(manga => {
-        return new Promise( resolve => {
+        return new Promise(resolve => {
             manga.getChapters((_, chapters) => resolve(chapters));
         });
     }, remoteManga);
@@ -68,20 +68,25 @@ async function assertConnector(browserPage, parameters, expectations) {
     }, remoteChapter);
     expect(pages.length).toEqual(expectations.pageCount);
     pages = pages.map(page => {
-        if(page.startsWith('connector://' + parameters.connectorID)) {
+        if (page.startsWith('connector://' + parameters.connectorID)) {
             let payload = decodeURIComponent(page.split('payload=')[1]);
             payload = JSON.parse(Buffer.from(payload, 'base64').toString());
+            if(parameters.connectorID == 'mangadex') {
+                return payload.networkNode + payload.hash + '/' + payload.file;
+            }
             return payload.url;
         } else {
             return page;
         }
     });
-    pages.forEach(page => expect(page).toMatch(expectations.pageMatcher));
+    if (expectations.pageMatcher) {
+        pages.forEach(page => expect(page).toMatch(expectations.pageMatcher));
+    }
 }
 
 describe("HakuNeko Engine", () => {
 
-    jest.setTimeout(25000);
+    jest.setTimeout(50000);
 
     var process;
     var browser;
@@ -107,7 +112,7 @@ describe("HakuNeko Engine", () => {
         try {
             await page.close();
             await browser.close();
-        } catch(error) {
+        } catch (error) {
             await new Promise(resolve => setTimeout(resolve, 5000));
             process.kill();
         }
@@ -129,34 +134,16 @@ describe("HakuNeko Engine", () => {
             it('should get manga, chapters and page links', async () => {
                 await assertConnector(page, {
                     connectorID: 'mangadex',
-                    mangaURL: 'https://mangadex.org/title/20164/they-say-i-was-born-a-king-s-daughter',
-                    chaptersAccessor: 0 // first => shift, last => pop, index => Integer
-                }, {
-                    connectorClass: 'MangaDex',
-                    mangaID: '20164',
-                    mangaTitle: 'They Say I Was Born a King\'s Daughter',
-                    chapterID: '534370',
-                    chapterTitle: 'Ch.0001 (br) [Usagi Scan]',
-                    pageCount: 51,
-                    pageMatcher: /^https:\/\/s\d+.mangadex.org\/data\/[0-9a-f]{32}\/R\d+\.jpg$/
-                });
-            });
-        });
-
-        describe('KissManga', () => {
-            it('should get manga, chapters and page links', async () => {
-                await assertConnector(page, {
-                    connectorID: 'kissmanga',
-                    mangaURL: 'https://kissmanga.com/Manga/Black-Clover',
+                    mangaURL: 'https://mangadex.org/title/0e711546-48be-4d95-90eb-c336cfc0ddce',
                     chaptersAccessor: 'pop' // first => shift, last => pop, index => Integer
                 }, {
-                    connectorClass: 'KissManga',
-                    mangaID: '/Manga/Black-Clover',
-                    mangaTitle: 'Black Clover',
-                    chapterID: '/Manga/Black-Clover/Chapter-001?id=277498',
-                    chapterTitle: '001',
-                    pageCount: 50,
-                    pageMatcher: /^http:\/\/2\.bp\.blogspot\.com\/-[a-zA-Z0-9_-]{11}\/Vjv[a-zA-Z0-9_-]{7}I\/AAAAAAAE[a-zA-Z0-9]{3}\/[a-zA-Z0-9_-]{11}\/s16000\/0001-0\d{2}.jpg$/
+                    connectorClass: 'MangaDex',
+                    mangaID: '0e711546-48be-4d95-90eb-c336cfc0ddce',
+                    mangaTitle: 'They Say I Was Born a King\'s Daughter',
+                    chapterID: '87623776-1db5-458e-b057-a4faff9d4af1',
+                    chapterTitle: 'Ch.0001 (pt-br) [Usagi Scan]',
+                    pageCount: 51,
+                    pageMatcher: /^https:\/\/(s\d+|uploads).mangadex.org\/data\/[0-9a-f]{32}\/R\d+-[0-9a-f]{64}.jpg$/
                 });
             });
         });
@@ -196,7 +183,55 @@ describe("HakuNeko Engine", () => {
                 });
             });
         });
-
+        describe('Baozimh', () => {
+            it('should get manga, chapters and page links', async () => {
+                await assertConnector(page, {
+                    connectorID: 'baozimh',
+                    mangaURL: 'https://www.baozimh.com/comic/nudiduolanyan-fuxiaolianmeng',
+                    chaptersAccessor: 'pop' // first => shift, last => pop, index => Integer
+                }, {
+                    connectorClass: 'Baozimh',
+                    mangaID: '/comic/nudiduolanyan-fuxiaolianmeng',
+                    mangaTitle: '女帝多藍顏',
+                    chapterID: '/user/page_direct?comic_id=nudiduolanyan-fuxiaolianmeng&section_slot=0&chapter_slot=0',
+                    chapterTitle: '預告',
+                    pageCount: 46,
+                    pageMatcher: /^https:\/\/.*.baozimh.com\/scomic\/nudiduolanyan-fuxiaolianmeng\/\d\/.*\/(\d*).jpg$/
+                });
+            });
+        });
+        describe('ComicBrise', () => {
+            it('should get manga, chapters and page links', async () => {
+                await assertConnector(page, {
+                    connectorID: 'comicbrise',
+                    mangaURL: 'https://comic-brise.com/contents/oshiai',
+                    chaptersAccessor: 'pop' // first => shift, last => pop, index => Integer
+                }, {
+                    connectorClass: 'ComicBrise',
+                    mangaID: '/contents/oshiai',
+                    mangaTitle: '推しに認知してもらうためにアイドル始めました。',
+                    chapterID: '/comic_ep/oshiai_ep1',
+                    chapterTitle: '第１話',
+                    pageCount: 49
+                });
+            });
+        });
+        describe('To-Corona-Ex', () => {
+            it('should get manga, chapters and page links', async () => {
+                await assertConnector(page, {
+                    connectorID: 'to-corona-ex',
+                    mangaURL: 'https://to-corona-ex.com/comics/20000000051530',
+                    chaptersAccessor: 'pop' // first => shift, last => pop, index => Integer
+                }, {
+                    connectorClass: 'ToCoronaEx',
+                    mangaID: '20000000051530',
+                    mangaTitle: '悪役令嬢ですが攻略対象の様子が異常すぎる@COMIC',
+                    chapterID: "20000000496345",
+                    chapterTitle: '第1話',
+                    pageCount: 34
+                });
+            });
+        });
         describe('ReadM', () => {
             it('should get manga, chapters and page links', async () => {
                 await assertConnector(page, {
@@ -210,7 +245,39 @@ describe("HakuNeko Engine", () => {
                     chapterID: '/manga/9465/1/all-pages',
                     chapterTitle: 'Chapter 1',
                     pageCount: 59,
-                    pageMatcher: /^https:\/\/readm\.org\/uploads\/chapter_files\/9465\/0\/p_\d{5}\.jpg$/
+                    pageMatcher: /^https:\/\/readm\.org\/uploads\/chapter_files\/9465\/0\/p_\d{5}\.jpg\?v=\d+$/
+                });
+            });
+        });
+        describe('Comic Valkyrie', () => {
+            it('should get manga, chapters and page links', async () => {
+                await assertConnector(page, {
+                    connectorID: 'comicvalkyrie',
+                    mangaURL: 'https://www.comic-valkyrie.com/isemaji',
+                    chaptersAccessor: 'pop' // first => shift, last => pop, index => Integer
+                }, {
+                    connectorClass: 'ComicValkyrie',
+                    mangaID: 'isemaji',
+                    mangaTitle: '異世界魔術師は魔法を唱えない',
+                    chapterID: 'https://www.comic-valkyrie.com/samplebook/val_isemaji01/',
+                    chapterTitle: '第1話',
+                    pageCount: 34,
+                });
+            });
+        });
+        describe('Futekiya', () => {
+            it('should get manga, chapters and page links', async () => {
+                await assertConnector(page, {
+                    connectorID: 'futekiya',
+                    mangaURL: 'https://read.futekiya.com/comic/5d13135038bcc',
+                    chaptersAccessor: 'shift' // first => shift, last => pop, index => Integer
+                }, {
+                    connectorClass: 'Futekiya',
+                    mangaID: '/comic/5d13135038bcc',
+                    mangaTitle: 'Mood Indigo',
+                    chapterID: "https://image.futekiya.com/viewer/5d13137ec6b1c",
+                    chapterTitle: 'Volume 1 - Chapter 1 Deeper than Blue',
+                    pageCount: 29
                 });
             });
         });

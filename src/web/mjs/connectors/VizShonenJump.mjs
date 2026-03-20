@@ -30,12 +30,13 @@ export default class VizShonenJump extends Connector {
         return {
             isLoggedIn: /user_id\s*=\s*[1-9]\d*/.test(data),
             isAdult: /adult\s*=\s*true/.test(data),
-            isMember: /is_wsj_subscriber\s*=\s*true/.test(data)
+            isMember: /is_sj_subscriber\s*=\s*true/.test(data),
+            isVizManga: /is_vm_subscriber\s*=\s*true/.test(data)
         };
     }
 
     async _getMangasAvailibleByVolumes() {
-        const request = new Request(new URL('/library', this.url), this.requestOptions);
+        const request = new Request(new URL('/account/library', this.url), this.requestOptions);
         let data = await this.fetchDOM(request);
 
         if ( data.innerText.includes('Log in to view your library') ) { // User isn't logged in, so there's no availible volumes
@@ -53,7 +54,26 @@ export default class VizShonenJump extends Connector {
     }
 
     async _getMangasAvailibleByChapters() {
-        const request = new Request(new URL('/shonenjump', this.url), this.requestOptions);
+        const request = new Request(new URL('/read/shonenjump/section/free-chapters', this.url), this.requestOptions);
+        let data = await this.fetchDOM(request);
+
+        if ( !data.innerText.includes('Latest free chapters') ) {
+            alert('This website is geolocked. It can only be accessed from the USA.\nYou may use MANGA Plus instead.', this.label, 'info');
+            return;
+        }
+
+        data = [...data.querySelectorAll('div.o_sort_container div.o_sortable a.o_chapters-link')];
+
+        return data.map(manga => {
+            return {
+                id: manga.pathname,
+                title: manga.innerText.trim()
+            };
+        });
+    }
+
+    async _getMangasAvailibleByVizMangaChapters() {
+        const request = new Request(new URL('/read/vizmanga/section/free-chapters', this.url), this.requestOptions);
         let data = await this.fetchDOM(request);
 
         if ( !data.innerText.includes('Latest free chapters') ) {
@@ -72,7 +92,7 @@ export default class VizShonenJump extends Connector {
     }
 
     async _getMangas() {
-        return [ ...await this._getMangasAvailibleByVolumes(), ...await this._getMangasAvailibleByChapters() ];
+        return [ ...await this._getMangasAvailibleByVolumes(), ...await this._getMangasAvailibleByChapters(), ...await this._getMangasAvailibleByVizMangaChapters() ];
     }
 
     async _getMangaChapters(manga) {
@@ -87,10 +107,6 @@ export default class VizShonenJump extends Connector {
 
         return [...data.querySelectorAll('div > a.o_chapter-container[data-target-url], tr.o_chapter td.ch-num-list-spacing a.o_chapter-container[data-target-url]')]
             .filter(element => {
-                // login required (e.g. age verification) => javascript:void('login to read');
-                if(/javascript:.*login/i.test(element.href)) {
-                    return auth.isLoggedIn && auth.isAdult;
-                }
                 // subscription required => javascript:void('join to read');
                 if(/javascript:.*join/i.test(element.href)) {
                     return auth.isMember;
@@ -131,12 +147,76 @@ export default class VizShonenJump extends Connector {
             throw new Error('Lost your login cookie between fetching the manga list and now (fetching the volume list), please log back in.', this.label, 'info');
         }
 
-        return [...data.querySelectorAll('#o_products tr td:last-of-type a')]
+        let volumeNames = [...data.querySelectorAll('#o_products tr td:nth-child(3)')]
+            .map(volume => {
+                return volume.innerText;
+            });
+
+        let firstVolumeName = volumeNames[0].substring(0, volumeNames[0].indexOf("Vol."));
+        let allNamesMatch = volumeNames.every(volume => {
+            return volume.startsWith(firstVolumeName);
+        });
+
+        let volumes = [...data.querySelectorAll('#o_products tr td:last-of-type a')]
             .map(volume => {
                 return {
                     id: this.getRootRelativeOrAbsoluteLink(volume, this.url).substring(1),
                     title: 'Vol. ' + volume.href.match(/-volume-([-_0-9]+)/i)[1]
                 };
+            });
+
+        // We're dealing with a manga that contains multiple subseries, so we must give each volume the full name provided or else
+        // the user won't be able to differentiate between series, and would have conflicting volume numbers.
+        if (!allNamesMatch) {
+            for (let i = 0; i < volumes.length; i++) {
+                volumes[i].title = volumeNames[i];
+            }
+        }
+
+        return volumes;
+    }
+
+    async _getVizMangaChapters(manga) {
+        let auth = await this._getUserInfo();
+        const request = new Request(new URL(manga.id, this.url), this.requestOptions);
+        let data = await this.fetchDOM(request);
+
+        if ( data.innerText.includes('MANGA Plus by SHUEISHA') ) {
+            alert('This website is geolocked. It can only be accessed from the USA.\nYou may use MANGA Plus instead.', this.label, 'info');
+            return;
+        }
+
+        return [...data.querySelectorAll('div > a.o_chapter-container[data-target-url], tr.o_chapter td.ch-num-list-spacing a.o_chapter-container[data-target-url]')]
+            .filter(element => {
+                // subscription required => javascript:void('join to read');
+                if(/javascript:.*join/i.test(element.href)) {
+                    return auth.isVizManga;
+                }
+                // free
+                return true;
+            })
+            .map(chapter => {
+                if(chapter.dataset.targetUrl.includes('javascript:')) {
+                    chapter.dataset.targetUrl = chapter.dataset.targetUrl.match(/['"](\/vizmanga[^']+)['"]/)[1];
+                }
+                let id = this.getRootRelativeOrAbsoluteLink(chapter.dataset.targetUrl, this.url);
+                let format = chapter.querySelector('.disp-id');
+                if( format ) {
+                    return {
+                        id: id,
+                        title: format.innerText.trim()
+                    };
+                }
+
+                format = chapter.dataset.targetUrl.match(/chapter-([-_0-9]+)\//);
+                if(format && format.length > 1) {
+                    return {
+                        id: id,
+                        title: 'Ch. ' + format[1].replace(/[-_]/g, '.')
+                    };
+                }
+
+                throw new Error(`Unknown chapter format for ${id}. Please report at https://github.com/manga-download/hakuneko/issues`);
             });
     }
 
@@ -144,7 +224,10 @@ export default class VizShonenJump extends Connector {
         if (manga.id.startsWith("/shonenjump/chapters")) {
             return await this._getMangaChapters(manga);
         }
-        if (manga.id.startsWith("/library")) {
+        if (manga.id.startsWith("/vizmanga/chapters")) {
+            return await this._getVizMangaChapters(manga);
+        }
+        if (manga.id.startsWith("/account/library")) {
             return await this._getMangaVolumes(manga);
         }
 
@@ -163,6 +246,9 @@ export default class VizShonenJump extends Connector {
             pageCount = parseInt([...responseData.matchAll(/<div\s+class="mar-b-md">\s*<strong>\s*Length\s*<\/strong>\s+(\d+)\s+pages\s*<\/div>/g)][0][1]);
             mangaID = parseInt([...responseData.matchAll(/var\s+mangaCommonId\s*=\s*(\d+)/g)][0][1]);
         } else if (chapter.id.startsWith("/shonenjump")) {
+            pageCount = parseInt([...responseData.matchAll(/var\s+pages\s*=\s*(\d+)/g)][0][1]);
+            mangaID = chapter.id.match(/chapter\/(\d+)/)[1];
+        } else if (chapter.id.startsWith("/vizmanga")) {
             pageCount = parseInt([...responseData.matchAll(/var\s+pages\s*=\s*(\d+)/g)][0][1]);
             mangaID = chapter.id.match(/chapter\/(\d+)/)[1];
         }

@@ -6,7 +6,7 @@ export default class ManhwaClub extends WordPressMadara {
         super();
         super.id = 'manhwaclub';
         super.label = 'ManhwaClub';
-        this.tags = [ 'hentai', 'english' ];
-        this.url = 'https://manhwa.club';
+        this.tags = [ 'webtoon', 'hentai', 'multi-lingual' ];
+        this.url = 'https://manhwaclub.net';
     }
 }

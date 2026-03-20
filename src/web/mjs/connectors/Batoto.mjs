@@ -7,7 +7,6 @@ export default class Batoto extends AnyACG {
         super.id = 'batoto';
         super.label = 'Batoto (by AnyACG)';
         this.tags = [ 'manga', 'multi-lingual' ];
-        this.url = 'https://bato.to';
 
         this.path = '/browse?sort=title&page=';
         this.queryMangaTitle = 'h3.item-title';
@@ -18,13 +17,39 @@ export default class Batoto extends AnyACG {
         this.queryMangaLink = 'a.item-title';
         this.queryMangaFlag = 'span.item-flag';
         this.queryChapters = 'div.episode-list div.main a.visited';
+
+        this.config = {
+            url: {
+                label: 'URL',
+                description: `This website's main domain doesn't always work, but has alternate domains.\nThis is the default URL which can also be manually set by the user.`,
+                input: 'text',
+                value: 'https://bato.to'
+            }
+        };
+    }
+
+    get url() {
+        return this.config.url.value;
+    }
+
+    set url(value) {
+        if (this.config && value) {
+            this.config.url.value = value;
+            Engine.Settings.save();
+        }
     }
 
     async _getPages(chapter) {
         let script = `
         new Promise(resolve => {
-            const base = JSON.parse(CryptoJS.AES.decrypt(server, batojs).toString(CryptoJS.enc.Utf8));
-            resolve(images.map(data => new URL(base + data, window.location.origin).href));
+            setTimeout(() => {
+                if(typeof app.items !== 'undefined') {
+                    resolve(app.items.map(item => item.src || item.isrc));
+                } else {
+                    const params = JSON.parse(CryptoJS.AES.decrypt(batoWord, batoPass).toString(CryptoJS.enc.Utf8));
+                    resolve(imgHttpLis.map((data, i) => \`\${data}?\${params[i]}\`));
+                }
+            }, 2500);
         });
         `;
         let request = new Request(this.url + chapter.id, this.requestOptions);

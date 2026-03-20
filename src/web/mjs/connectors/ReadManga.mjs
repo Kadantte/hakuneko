@@ -1,4 +1,5 @@
 import Connector from '../engine/Connector.mjs';
+import Manga from '../engine/Manga.mjs';
 
 export default class ReadManga extends Connector {
 
@@ -7,7 +8,7 @@ export default class ReadManga extends Connector {
         super.id = 'readmanga';
         super.label = 'ReadManga';
         this.tags = [ 'manga', 'russian' ];
-        this.url = 'https://readmanga.live';
+        this.url = 'https://t.readmanga.io';
         this.links = {
             login: 'https://grouple.co/internal/auth/login'
         };
@@ -24,6 +25,14 @@ export default class ReadManga extends Connector {
         };
 
         this.preferSubtitleAsMangaTitle = true;
+    }
+
+    async _getMangaFromURI(uri) {
+        const request = new Request(uri, this.requestOptions);
+        const data = await this.fetchDOM(request, 'div#mangaBox h1.names span.name');
+        const id = uri.pathname;
+        const title = data[0].textContent.trim();
+        return new Manga(this, id, title);
     }
 
     async _getMangas() {
@@ -57,7 +66,7 @@ export default class ReadManga extends Connector {
         let data = await this.fetchDOM(request, 'div#mangaBox' );
         let content = data[0];
         let mangaTitle = content.querySelector('h1.names span.name').innerText.trim();
-        let chapterList = [...content.querySelectorAll('div.chapters-link table tr td a')];
+        let chapterList = [...content.querySelectorAll('div#chapters-list table tr td a')];
         return chapterList.map(element => {
             return {
                 id: this.getRootRelativeOrAbsoluteLink(element, this.url),
@@ -68,8 +77,45 @@ export default class ReadManga extends Connector {
     }
 
     async _getPages(chapter) {
-        let request = new Request(new URL(chapter.id + '?mtr=1', this.url), this.requestOptions);
-        let data = await this.fetchRegex(request, /init\s*\(\s*(\[\s*\[.*?\]\s*\])/g);
-        return JSON.parse(data[0].replace(/'/g, '"')).map(page => page[0] + page[2]);
+        const script = `
+            new Promise(resolve => {
+                const payload = {
+                    pics: rm_h.pics.map(pic => rm_h.reader.preparePicUrl(pic.url)),
+                    servers: rm_h.servers.map(server => server.path)
+                };
+                resolve(payload);
+            });
+        `;
+        const uri = new URL(chapter.id + '?mtr=1', this.url);
+        const request = new Request(uri, this.requestOptions);
+        const payload = await Engine.Request.fetchUI(request, script);
+        return payload.pics.map(element => {
+            return this.createConnectorURI({
+                picture: element,
+                servers: payload.servers
+            });
+        });
+    }
+
+    async _handleConnectorURI(payload) {
+        let request = new Request(payload.picture, this.requestOptions);
+        let response = await fetch(request);
+        if (response.status !== 200) {
+            const uri = new URL(payload.picture);
+            for (let server of payload.servers) {
+                if (`${uri.origin}/` === server) {
+                    continue;
+                }
+                request = new Request(new URL(uri.pathname, server), this.requestOptions);
+                response = await fetch(request);
+                if (response.status === 200) {
+                    break;
+                }
+            }
+        }
+        let data = await response.blob();
+        data = await this._blobToBuffer(data);
+        this._applyRealMime(data);
+        return data;
     }
 }

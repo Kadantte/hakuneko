@@ -6,19 +6,12 @@ export default class Streamtape {
 
     async getStream() {
         const script = `
-            new Promise(async (resolve, reject) => {
-                try {
-                    const uri = new URL(document.querySelector('div[id$=link]').textContent.trim(), window.location.origin);
-                    const response = await fetch(uri, {
-                        method: 'HEAD' // headers: { 'Range': 'bytes=0-0' }
-                    });
-                    resolve(response.url);
-                } catch (error) {
-                    reject(error);
-                }
+            new Promise(resolve => {
+                resolve(document.getElementById('robotlink').textContent.trim());
             });
         `;
         const request = new Request(this._uri);
-        return Engine.Request.fetchUI(request, script);
+        const data = await Engine.Request.fetchUI(request, script);
+        return new URL(data, this._uri).href;
     }
 }
